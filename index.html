@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Team Statz AFL v79</title>
+    <style>
+        :root { --home-blue: #002b5c; --home-red: #d71920; --away-grey: #222222; --accent: #fbc531; --entry-green: #27ae60; --bg-dark: #000000; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg-dark); color: white; display: flex; flex-direction: column; min-height: 100dvh; }
+        
+        .app-header { display: flex; align-items: center; justify-content: center; padding: 10px 8px 4px; background: #000; border-bottom: 1px solid #222; }
+        .logo-text { font-weight: 900; font-size: 1.1rem; letter-spacing: 1px; }
+        .logo-statz { color: var(--accent); }
+
+        #display-zone { flex: 0 0 auto; background: #0a0a0a; padding: 6px; border-bottom: 2px solid #333; }
+        .timer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+        .timer-box { background: #111; border: 1px solid #333; border-radius: 6px; padding: 4px; text-align: center; }
+        .timer-label { font-size: 0.55rem; color: #888; font-weight: 900; text-transform: uppercase; }
+        .timer-val { font-size: 1.2rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+        
+        @keyframes pulse-red { 0% { background: #111; } 50% { background: #7b0000; } 100% { background: #111; } }
+        .alarm-active { animation: pulse-red 1s infinite; border-color: #ff0000 !important; }
+
+        .q-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 6px;}
+        .q-btn { height: 34px; border: none; background: #222; color: #777; border-radius: 4px; font-weight: 900; font-size: 0.9rem; }
+        .q-btn.active { background: var(--entry-green); color: white; }
+        
+        .bars-container { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 0; }
+        .bar-group { display: flex; flex-direction: column; gap: 2px; }
+        .bar-label { font-size: 0.55rem; font-weight: 900; text-transform: uppercase; color: #666; text-align: center; }
+        .bar-bg { height: 20px; background: #111; border-radius: 3px; overflow: hidden; display: flex; position: relative; border: 1px solid #222; }
+        .bar-fill-h { height: 100%; background: var(--home-red); transition: width 0.3s ease; }
+        .bar-fill-a { height: 100%; background: var(--away-grey); transition: width 0.3s ease; }
+        .bar-diff { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; font-size: 0.8rem; font-weight: 900; text-shadow: 1px 1px 2px #000; }
+        
+        #input-zone { flex: 1; background: #141414; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; }
+        .tile { border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.1); padding: 4px; }
+        .h-blue { background: var(--home-blue); } .h-red { background: var(--home-red); } .tile-a { background: var(--away-grey); }
+        .tile-label { font-size: 0.75rem; font-weight: 900; text-transform: uppercase; text-align: center; line-height: 1; margin-bottom: 2px; letter-spacing: -0.2px;}
+        .tile-count { font-size: 2.4rem; font-weight: 900; line-height: 1; }
+        .tile-sub { font-size: 0.65rem; font-weight: 900; color: var(--accent); opacity: 1; margin-top: 2px; }
+        
+        .shot-row { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr; gap: 6px; }
+        .score-center-tile { background: #000; border: 1px solid #333; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .score-center-val { font-size: 1.5rem; font-weight: 900; color: var(--accent); }
+        .score-center-label { font-size: 0.6rem; font-weight: 900; color: #666; text-transform: uppercase; }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 100; align-items: center; justify-content: center; padding: 10px; }
+        .modal-content { background: #111; width: 100%; border-radius: 12px; border: 1px solid var(--accent); display: flex; flex-direction: column; max-height: 94dvh; }
+        .summary-scroll { flex: 1; overflow-y: auto; padding: 12px; }
+        .sum-card { background: #1e1e1e; border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 4px solid var(--accent); }
+        .sum-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .sum-table th { color: #666; font-size: 0.6rem; text-transform: uppercase; text-align: right; padding-bottom: 4px; }
+        .sum-table td { padding: 8px 4px; border-bottom: 1px solid #2a2a2a; text-align: right; }
+        .sum-table td:first-child { text-align: left; color: #bbb; font-weight: bold; }
+        
+        .btn-action { height: 48px; border: none; border-radius: 8px; font-weight: 900; text-transform: uppercase; cursor: pointer; font-size: 0.9rem; }
+        .btn-undo { height: 70px; font-size: 1.4rem; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="app-header"><span class="logo-text" style="color:#666">TEAM <span class="logo-statz">STATZ</span></span></div>
+
+<div id="display-zone">
+    <div class="timer-grid">
+        <div class="timer-box" id="h-timer-box"><div class="timer-label">Home Last I50</div><div class="timer-val" id="h-timer">00:00</div></div>
+        <div class="timer-box" id="a-timer-box"><div class="timer-label">Away Last I50</div><div class="timer-val" id="a-timer">00:00</div></div>
+    </div>
+    <div class="q-nav">
+        <button class="q-btn active" onclick="setQ(1)">Q1</button>
+        <button class="q-btn" onclick="setQ(2)">Q2</button>
+        <button class="q-btn" onclick="setQ(3)">Q3</button>
+        <button class="q-btn" onclick="setQ(4)">Q4</button>
+    </div>
+    <div class="bars-container">
+        <div class="bar-group" id="bar-CLR"></div>
+        <div class="bar-group" id="bar-I50"></div>
+        <div class="bar-group" id="bar-TKL"></div>
+        <div class="bar-group" id="bar-SHT"></div>
+    </div>
+</div>
+
+<div id="input-zone">
+    <div class="stat-grid">
+        <div class="tile h-blue" onclick="add('hClr')"><div class="tile-label">Centre Clearance</div><div class="tile-count" id="hClr">0</div><div class="tile-sub" id="hClrEff">SHOT: 0%</div></div>
+        <div class="tile tile-a" onclick="add('aClr')"><div class="tile-label">Centre Clearance</div><div class="tile-count" id="aClr">0</div><div class="tile-sub" id="aClrEff">SHOT: 0%</div></div>
+        
+        <div class="tile h-red" onclick="add('hI50')"><div class="tile-label">Inside 50</div><div class="tile-count" id="hI50">0</div><div class="tile-sub" id="hEff">SHOT: 0%</div></div>
+        <div class="tile tile-a" onclick="add('aI50')"><div class="tile-label">Inside 50</div><div class="tile-count" id="aI50">0</div><div class="tile-sub" id="aEff">SHOT: 0%</div></div>
+        
+        <div class="tile h-blue" onclick="add('hTkl')"><div class="tile-label">Tackle</div><div class="tile-count" id="hTkl">0</div></div>
+        <div class="tile tile-a" onclick="add('aTkl')"><div class="tile-label">Tackle</div><div class="tile-count" id="aTkl">0</div></div>
+        
+        <div class="shot-row" style="grid-column: span 2;">
+            <div class="tile h-red" onclick="openShot('h')"><div class="tile-label">Shot</div><div class="tile-count" id="hShotTotal" style="font-size: 1.8rem;">0</div><div class="tile-sub" id="hScoreSub" style="color:white">0.0 (0)</div></div>
+            <div class="score-center-tile"><div class="score-center-label" id="q-label">Q1</div><div class="score-center-val" id="q-score-val">0-0</div></div>
+            <div class="tile tile-a" onclick="openShot('a')"><div class="tile-label">Shot</div><div class="tile-count" id="aShotTotal" style="font-size: 1.8rem;">0</div><div class="tile-sub" id="aScoreSub" style="color:white">0.0 (0)</div></div>
+        </div>
+        <button class="btn-action btn-undo" style="background:var(--accent); grid-column: span 2; color:black;" onclick="undo()">UNDO</button>
+    </div>
+    <button class="btn-action" onclick="showSummary()" style="background:var(--entry-green); color:white; margin-top:5px;">Match Summary</button>
+</div>
+
+<div id="shotModal" class="modal"><div class="modal-content" style="padding:20px;"><h3 style="text-align:center; color:var(--accent); margin:0 0 15px 0;">RESULT</h3><div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><button onclick="regShot('g')" style="height:75px; font-size:1.1rem; font-weight:900; background:var(--entry-green); color:white; border:none; border-radius:8px;">GOAL</button><button onclick="regShot('b')" style="height:75px; font-size:1.1rem; font-weight:900; background:var(--accent); color:black; border:none; border-radius:8px;">POINT</button><button onclick="regShot('o')" style="height:75px; font-size:1.1rem; font-weight:900; background:#c0392b; color:white; border:none; border-radius:8px;">MISS</button><button onclick="regShot('r')" style="height:75px; font-size:1.1rem; font-weight:900; background:#2980b9; color:white; border:none; border-radius:8px;">RUSHED</button></div><button onclick="closeMod('shotModal')" style="width:100%; margin-top:15px; padding:12px; background:#333; color:white; border:none; border-radius:8px; font-weight:900;">CANCEL</button></div></div>
+
+<div id="finishModal" class="modal"><div class="modal-content"><div style="padding:12px; background:#222; text-align:center; font-weight:900; color:var(--accent);">ANALYTICS</div><div class="summary-scroll" id="sum-content"></div><div style="padding:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#111;"><button class="btn-action" style="background:#444; color:white;" onclick="exportCSV()">CSV</button><button class="btn-action" style="background:#c0392b; color:white;" onclick="resetGame()">RESET</button><button class="btn-action" style="grid-column: span 2; background:var(--accent); color:black;" onclick="closeMod('finishModal')">BACK</button></div></div></div>
+
+<script>
+    let q = 1, curT = 'h', history = [];
+    let lastI50Time = {h: null, a: null}, lastClrTime = {h: 0, a: 0};
+    let db = JSON.parse(localStorage.getItem('statz_v79')) || {
+        stats: {1:{},2:{},3:{},4:{}},
+        shots: {1:{hg:0,hb:0,ho:0,hr:0,ag:0,ab:0,ao:0,ar:0}, 2:{hg:0,hb:0,ho:0,hr:0,ag:0,ab:0,ao:0,ar:0}, 3:{hg:0,hb:0,ho:0,hr:0,ag:0,ab:0,ao:0,ar:0}, 4:{hg:0,hb:0,ho:0,hr:0,ag:0,ab:0,ao:0,ar:0}},
+        timing: {1:{hClr:[], aClr:[]}, 2:{hClr:[], aClr:[]}, 3:{hClr:[], aClr:[]}, 4:{hClr:[], aClr:[]}}
+    };
+
+    const keys = ['hClr','aClr','hI50','aI50','hTkl','aTkl'];
+    [1,2,3,4].forEach(i => {
+        keys.forEach(k => { if(db.stats[i][k] === undefined) db.stats[i][k]=0; });
+        if(!db.timing[i]) db.timing[i] = {hClr:[], aClr:[]};
+    });
+
+    window.onload = () => { render(); setInterval(updateTimers, 1000); };
+
+    function updateTimers() {
+        ['h','a'].forEach(t => {
+            let display = document.getElementById(`${t}-timer`), box = document.getElementById(`${t}-timer-box`);
+            if (lastI50Time[t] === null) { display.innerText = "00:00"; box.classList.remove('alarm-active'); return; }
+            let diff = Math.floor((Date.now() - lastI50Time[t]) / 1000), m = Math.floor(diff / 60), s = diff % 60;
+            if (m > 0 && m % 5 === 0 && s < 10) box.classList.add('alarm-active'); else box.classList.remove('alarm-active');
+            display.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        });
+    }
+
+    function add(k) { 
+        db.stats[q][k]++; 
+        let now = Date.now();
+        if(k.endsWith('I50')) lastI50Time[k[0]] = now;
+        if(k.endsWith('Clr')) lastClrTime[k[0]] = now;
+        history.push({t:'s', q, k}); save(); 
+    }
+
+    function regShot(m) { 
+        let k=curT+m; db.shots[q][k]++; 
+        let now = Date.now();
+        if(lastClrTime[curT] && (now - lastClrTime[curT] < 45000)) {
+            db.timing[q][curT+'Clr'].push((now - lastClrTime[curT])/1000);
+            lastClrTime[curT] = 0;
+        }
+        history.push({t:'g', q, k}); closeMod('shotModal'); save(); 
+    }
+
+    function setQ(n) { q=n; lastI50Time = {h: null, a: null}; document.querySelectorAll('.q-btn').forEach((b,i)=>b.classList.toggle('active', i+1===n)); render(); }
+    function openShot(t) { curT=t; document.getElementById('shotModal').style.display='flex'; }
+    function undo() { if(!history.length) return; let l=history.pop(); if(l.t==='s') db.stats[l.q][l.k]--; else db.shots[l.q][l.k]--; save(); }
+    function save() { localStorage.setItem('statz_v79', JSON.stringify(db)); render(); }
+    function closeMod(id) { document.getElementById(id).style.display='none'; }
+
+    function render() {
+        keys.forEach(k => { const el = document.getElementById(k); if(el) el.innerText = db.stats[q][k]; });
+        let s=db.shots[q], st=db.stats[q];
+        let hS = s.hg+s.hb+s.ho+s.hr, aS = s.ag+s.ab+s.ao+s.ar;
+
+        document.getElementById('hShotTotal').innerText = hS;
+        document.getElementById('aShotTotal').innerText = aS;
+        document.getElementById('hScoreSub').innerText = `${s.hg}.${s.hb+s.hr} (${s.hg*6+s.hb+s.hr})`;
+        document.getElementById('aScoreSub').innerText = `${s.ag}.${s.ab+s.ar} (${s.ag*6+s.ab+s.ar})`;
+        document.getElementById('q-label').innerText = `Q${q}`;
+        document.getElementById('q-score-val').innerText = `${s.hg*6+s.hb+s.hr}-${s.ag*6+s.ab+s.ar}`;
+        
+        document.getElementById('hClrEff').innerText = `SHOT: ${st.hClr>0?Math.round((db.timing[q].hClr.length/st.hClr)*100):0}%`;
+        document.getElementById('aClrEff').innerText = `SHOT: ${st.aClr>0?Math.round((db.timing[q].aClr.length/st.aClr)*100):0}%`;
+        document.getElementById('hEff').innerText = `SHOT: ${st.hI50>0?Math.round((hS/st.hI50)*100):0}%`;
+        document.getElementById('aEff').innerText = `SHOT: ${st.aI50>0?Math.round((aS/st.aI50)*100):0}%`;
+
+        const updateBar = (id, label, h, a) => {
+            const el = document.getElementById('bar-'+id);
+            if(!el) return;
+            let diff = h - a;
+            el.innerHTML = `<div class="bar-label">${label}</div><div class="bar-bg"><div class="bar-diff">${diff>0?'+'+diff:diff}</div><div class="bar-fill-h" style="width:${(h/(h+a||1))*100}%"></div><div class="bar-fill-a" style="width:${(a/(h+a||1))*100}%"></div></div>`;
+        };
+        updateBar('CLR', 'Centre Clearance', st.hClr, st.aClr);
+        updateBar('I50', 'Inside 50', st.hI50, st.aI50);
+        updateBar('TKL', 'Tackle', st.hTkl, st.aTkl);
+        updateBar('SHT', 'Shots', hS, aS);
+    }
+
+    function showSummary() {
+        const sS = (k) => [1,2,3,4].reduce((a,b)=>a+(db.stats[b][k]||0),0);
+        const sG = (k) => [1,2,3,4].reduce((a,b)=>a+(db.shots[b][k]||0),0);
+        const sT = (k) => [1,2,3,4].flatMap(i => db.timing[i][k]);
+        const getTShot = (t) => sG(t+'g')+sG(t+'b')+sG(t+'o')+sG(t+'r');
+        
+        let html = `<div class="sum-card"><h4 style="margin:0 0 10px 0; color:var(--accent);">FULL MATCH TOTALS</h4><table class="sum-table">
+            <tr><th>STAT</th><th>HOME</th><th>AWAY</th></tr>
+            ${row('Score', `${sG('hg')}.${sG('hb')+sG('hr')} (${sG('hg')*6+sG('hb')+sG('hr')})`, `${sG('ag')}.${sG('ab')+sG('ar')} (${sG('ag')*6+sG('ab')+sG('ar')})`)}
+            ${row('Centre Clr', sS('hClr'), sS('aClr'))}
+            ${row('Inside 50', sS('hI50'), sS('aI50'))}
+            ${row('Tackles', sS('hTkl'), sS('aTkl'))}
+            <tr><td colspan="3" style="font-size:0.6rem; color:var(--accent); padding-top:10px; font-weight:900;">EFFICIENCY %</td></tr>
+            ${row('Clr to Shot', Math.round((sT('hClr').length/sS('hClr')||0)*100)+'%', Math.round((sT('aClr').length/sS('aClr')||0)*100)+'%')}
+            ${row('I50 to Shot', Math.round((getTShot('h')/sS('hI50')||0)*100)+'%', Math.round((getTShot('a')/sS('aI50')||0)*100)+'%')}
+            ${row('Shot to Goal', Math.round((sG('hg')/getTShot('h')||0)*100)+'%', Math.round((sG('ag')/getTShot('a')||0)*100)+'%')}
+        </table></div>`;
+
+        [1,2,3,4].forEach(i => {
+            let st = db.stats[i], sh = db.shots[i];
+            html += `<div class="sum-card"><h4 style="margin:0 0 10px 0; color:#888;">QUARTER ${i}</h4><table class="sum-table">
+                <tr><th>STAT</th><th>HOME</th><th>AWAY</th></tr>
+                ${row('Score', `${sh.hg}.${sh.hb+sh.hr} (${sh.hg*6+sh.hb+sh.hr})`, `${sh.ag}.${sh.ab+sh.ar} (${sh.ag*6+sh.ab+sh.ar})`)}
+                ${row('Centre Clr', st.hClr, st.aClr)}
+                ${row('Inside 50', st.hI50, st.aI50)}
+                ${row('Shots', sh.hg+sh.hb+sh.ho+sh.hr, sh.ag+sh.ab+sh.ao+sh.ar)}
+            </table></div>`;
+        });
+        document.getElementById('sum-content').innerHTML = html;
+        document.getElementById('finishModal').style.display='flex';
+    }
+    function row(l, h, a) { return `<tr><td>${l}</td><td>${h}</td><td>${a}</td></tr>`; }
+    function resetGame() { if(confirm("Clear match?")) { localStorage.clear(); location.reload(); } }
+    function exportCSV() {
+        let csv = "Stat,Home,Away\n";
+        const sS = (k) => [1,2,3,4].reduce((a,b)=>a+(db.stats[b][k]||0),0);
+        csv += `Centre Clr,${sS('hClr')},${sS('aClr')}\nI50,${sS('hI50')},${sS('aI50')}`;
+        let b=new Blob([csv],{type:'text/csv'}); let a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='stats.csv'; a.click();
+    }
+</script>
+</body>
+</html>
