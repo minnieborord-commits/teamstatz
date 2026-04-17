@@ -3,6 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Statz">
+<link rel="apple-touch-icon" href="logo.png">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+</script>
     <title>Team Statz AFL v79</title>
     <style>
         :root { --home-blue: #002b5c; --home-red: #d71920; --away-grey: #222222; --accent: #fbc531; --entry-green: #27ae60; --bg-dark: #000000; }
